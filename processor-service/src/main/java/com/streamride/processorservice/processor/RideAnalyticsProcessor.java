@@ -20,7 +20,10 @@ import org.springframework.kafka.support.serializer.JsonSerde;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Component
 @Slf4j
@@ -134,40 +137,45 @@ public class RideAnalyticsProcessor {
                 })
                 .to(OUTPUT_TOPIC, Produced.with(stringSerde, stringSerde));
 
-        //  Convert activeRides KTable to KStream
+        // ---------------- TOP CITIES ON ACTIVE RIDES ----------------
         KStream<String, Long> activeRidesStreamForTopCities = activeRides.toStream();
 
-        KTable<String, List<CityCount>> topCitiesTable = activeRidesStreamForTopCities
-                .groupBy((city, count) -> "TOP_CITIES_KEY", Grouped.with(stringSerde, longSerde))
+        KStream<String, CityCount> cityCountStream = activeRidesStreamForTopCities
+                .map((city, count) -> KeyValue.pair("TOP_CITIES_KEY", new CityCount(city, count)));
+
+        KTable<String, Map<String, Long>> cityCountsTable2 = cityCountStream
+                .groupByKey(Grouped.with(Serdes.String(), new JsonSerde<>(CityCount.class)))
                 .aggregate(
-                        ArrayList::new,
-                        (ignoredKey, newCount, currentList) -> {
-                            // Remove existing entry for the city
-                            currentList.removeIf(c -> c.getCity().equals(ignoredKey));
-                            // Add the updated city count
-                            currentList.add(new CityCount(ignoredKey, newCount));
-                            // Sort descending by count
-                            currentList.sort((c1, c2) -> Long.compare(c2.getCount(), c1.getCount()));
-                            // Keep only top 5 by trimming the list in place
-                            while (currentList.size() > 5) {
-                                currentList.remove(currentList.size() - 1);
+                        HashMap::new,
+                        (aggKey, cityCount, state) -> {
+                            if (cityCount.getCount() == 0) {
+                                state.remove(cityCount.getCity());
+                            } else {
+                                state.put(cityCount.getCity(), cityCount.getCount());
                             }
-                            return currentList;
+                            return state;
                         },
-                        Materialized.with(stringSerde, new JsonSerde<List<CityCount>>(new TypeReference<List<CityCount>>() {
-                        }))
+                        Materialized.<String, Map<String, Long>, KeyValueStore<Bytes, byte[]>>as("top-cities-store")
+                                .withKeySerde(Serdes.String())
+                                .withValueSerde(new JsonSerde<>(new TypeReference<Map<String, Long>>() {
+                                }))
                 );
 
-        //  Convert to stream and send JSON to output topic
-        topCitiesTable.toStream()
-                .mapValues(topList -> {
+        // Convert map to list, sort and limit top 5, then write JSON string to output topic
+        cityCountsTable2.toStream()
+                .mapValues(map -> {
+                    List<CityCount> top5 = map.entrySet().stream()
+                            .map(e -> new CityCount(e.getKey(), e.getValue()))
+                            .sorted((c1, c2) -> Long.compare(c2.getCount(), c1.getCount()))
+                            .limit(5)
+                            .collect(Collectors.toList());
                     ObjectNode json = mapper.createObjectNode();
                     json.put("type", "TOP_ACTIVE_CITIES");
-                    json.putPOJO("cities", topList);
+                    json.putPOJO("cities", top5);
                     json.put("timestamp", System.currentTimeMillis());
                     return json.toString();
                 })
-                .to(OUTPUT_TOPIC, Produced.with(stringSerde, stringSerde));
+                .to(OUTPUT_TOPIC, Produced.with(Serdes.String(), Serdes.String()));
 
 
         // -------------- ANOMALIES ----------------
