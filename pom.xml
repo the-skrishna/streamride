@@ -21,6 +21,7 @@
         <module>commons</module>
         <module>producer-service</module>
         <module>processor-service</module>
+        <module>dashboard-service</module>
     </modules>
 
     <dependencyManagement>
