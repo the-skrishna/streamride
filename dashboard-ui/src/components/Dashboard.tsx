@@ -10,12 +10,13 @@ export const Dashboard: React.FC = () => {
     const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
     const [connectionStatus, setConnectionStatus] = useState('connecting');
     const { isConnected, error: wsError, subscribe } = useWebSocket();
-    const { metrics: polledMetrics} = useMetrics();
+    const { metrics: polledMetrics } = useMetrics();
 
     useEffect(() => {
+        let subscription: any = null;
         if (isConnected) {
             setConnectionStatus('connected');
-            subscribe('message', (data: DashboardMetrics) => {
+            subscription = subscribe('/topic/metrics', (data: DashboardMetrics) => {
                 setMetrics(data);
             });
         } else {
@@ -24,6 +25,12 @@ export const Dashboard: React.FC = () => {
                 setMetrics(polledMetrics);
             }
         }
+
+        return () => {
+            if (subscription) {
+                subscription.unsubscribe();
+            }
+        };
     }, [isConnected, subscribe, polledMetrics]);
 
     useEffect(() => {
@@ -45,14 +52,14 @@ export const Dashboard: React.FC = () => {
     };
 
     return (
-        <div className="dashboard">
+        <div>
             <header className="dashboard-header">
                 <h1>🚗 StreamRide Analytics Dashboard</h1>
                 <div className="status-indicator">
-          <span
-              className="status-dot"
-              style={{ backgroundColor: getStatusColor() }}
-          ></span>
+                    <span
+                        className="status-dot"
+                        style={{ backgroundColor: getStatusColor() }}
+                    ></span>
                     <span className="status-text">{getStatusText()}</span>
                 </div>
             </header>

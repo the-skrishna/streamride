@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import Chart from 'chart.js/auto';
-import { CityMetrics } from '../types/metrics';
+import type { CityMetrics } from '../types/metrics';
 
 interface TopCitiesChartProps {
     data: CityMetrics[];

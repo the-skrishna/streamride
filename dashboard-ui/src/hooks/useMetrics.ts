@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { DashboardMetrics } from '../types/metrics';
-
-const API_BASE_URL = 'http://localhost:8083/api';
+import type { DashboardMetrics } from '../types/metrics';
 
 export const useMetrics = () => {
     const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
@@ -13,7 +11,7 @@ export const useMetrics = () => {
         try {
             setError(null);
             const response = await axios.get<DashboardMetrics>(
-                `${API_BASE_URL}/metrics/current`
+                `/metrics/current`
             );
             setMetrics(response.data);
         } catch (err) {

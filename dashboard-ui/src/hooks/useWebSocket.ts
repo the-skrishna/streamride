@@ -1,67 +1,53 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import io, { Socket } from 'socket.io-client';
-import { DashboardMetrics } from '../types/metrics';
+import { Client } from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
 
-export const useWebSocket = (url: string = 'http://localhost:8083') => {
-    const socketRef = useRef<Socket | null>(null);
+export const useWebSocket = (url: string = '/metrics/current') => {
+    const clientRef = useRef<Client | null>(null);
     const [isConnected, setIsConnected] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        try {
-            socketRef.current = io(url, {
-                transports: ['websocket', 'polling'],
-                reconnection: true,
-                reconnectionDelay: 1000,
-                reconnectionDelayMax: 5000,
-                reconnectionAttempts: 5,
-            });
-
-            socketRef.current.on('connect', () => {
+        const client = new Client({
+            webSocketFactory: () => new SockJS(url),
+            onConnect: () => {
                 console.log('WebSocket connected');
                 setIsConnected(true);
                 setError(null);
-            });
-
-            socketRef.current.on('disconnect', () => {
+            },
+            onDisconnect: () => {
                 console.log('WebSocket disconnected');
                 setIsConnected(false);
-            });
+            },
+            onStompError: (frame) => {
+                console.error('Broker reported error: ' + frame.headers['message']);
+                console.error('Additional details: ' + frame.body);
+                setError('WebSocket error');
+            },
+            reconnectDelay: 5000,
+        });
 
-            socketRef.current.on('error', (err) => {
-                console.error('WebSocket error:', err);
-                setError('Connection error');
-            });
+        client.activate();
+        clientRef.current = client;
 
-            return () => {
-                if (socketRef.current) {
-                    socketRef.current.disconnect();
-                }
-            };
-        } catch (err) {
-            console.error('Failed to connect WebSocket:', err);
-            setError('Failed to establish WebSocket connection');
-        }
+        return () => {
+            client.deactivate();
+        };
     }, [url]);
 
     const subscribe = useCallback(
-        (event: string, callback: (data: any) => void) => {
-            if (socketRef.current) {
-                socketRef.current.on(event, callback);
+        (destination: string, callback: (data: any) => void) => {
+            if (clientRef.current && clientRef.current.connected) {
+                return clientRef.current.subscribe(destination, (message) => {
+                    try {
+                        const data = JSON.parse(message.body);
+                        callback(data);
+                    } catch (e) {
+                        console.error('Failed to parse message', e);
+                    }
+                });
             }
-        },
-        []
-    );
-
-    const unsubscribe = useCallback(
-        (event: string, callback?: (data: any) => void) => {
-            if (socketRef.current) {
-                if (callback) {
-                    socketRef.current.off(event, callback);
-                } else {
-                    socketRef.current.off(event);
-                }
-            }
+            return null;
         },
         []
     );
@@ -70,7 +56,5 @@ export const useWebSocket = (url: string = 'http://localhost:8083') => {
         isConnected,
         error,
         subscribe,
-        unsubscribe,
-        socket: socketRef.current,
     };
 };
