@@ -22,5 +22,7 @@ public class RideAnalytics {
     private Long totalRidesCompleted;
     private Map<String, Long> ridesByCity;
     private Long activeDrivers;
-    private Long anomalousRides; // rides > threshold duration
+    private Long anomalousRides;// rides > threshold duration
+
+
 }
