@@ -44,20 +44,32 @@ public class RideAnalyticsProcessor {
         Serde<Double> doubleSerde = Serdes.Double();
 
         // -------------- SOURCE STREAM ----------------
-        KStream<String, RideEvent> events =
-                builder.stream(SOURCE_TOPIC, Consumed.with(stringSerde, rideEventSerde));
+        KStream<String, RideEvent> events = builder.stream(SOURCE_TOPIC,
+                Consumed.with(stringSerde, rideEventSerde));
 
         // -------------- METRICS ----------------
-        //  Active rides (REQUESTED + STARTED)
-        KTable<String, Long> activeRides = events
-                .filter((k, v) -> v.getEventType() == EventType.RIDE_REQUESTED ||
-                        v.getEventType() == EventType.RIDE_STARTED)
-                .groupBy((k, v) -> v.getCity(), Grouped.with(stringSerde, rideEventSerde))
-                .count(Materialized.<String, Long, KeyValueStore<Bytes, byte[]>>as("active-rides-store")
-                        .withKeySerde(stringSerde)
-                        .withValueSerde(longSerde));
 
-        //  Completed rides per city
+        //  Active rides (increment on STARTED, decrement on COMPLETED)
+        KTable<String, Long> activeRides = events
+                .filter((k, v) -> v.getEventType() == EventType.RIDE_STARTED ||
+                        v.getEventType() == EventType.RIDE_COMPLETED)
+                .groupBy((k, v) -> v.getCity(), Grouped.with(stringSerde, rideEventSerde))
+                .aggregate(
+                        () -> 0L,
+                        (city, event, currentCount) -> {
+                            if (event.getEventType() == EventType.RIDE_STARTED) {
+                                return currentCount + 1;  // Increment when ride starts
+                            } else if (event.getEventType() == EventType.RIDE_COMPLETED) {
+                                return Math.max(0, currentCount - 1);  // Decrement when ride completes
+                            }
+                            return currentCount;
+                        },
+                        Materialized.<String, Long, KeyValueStore<Bytes, byte[]>>as("active-rides-store")
+                                .withKeySerde(stringSerde)
+                                .withValueSerde(longSerde)
+                );
+
+        // Completed rides per city
         KTable<String, Long> ridesCompleted = events
                 .filter((k, v) -> v.getEventType() == EventType.RIDE_COMPLETED)
                 .groupBy((k, v) -> v.getCity(), Grouped.with(stringSerde, rideEventSerde))
@@ -65,7 +77,7 @@ public class RideAnalyticsProcessor {
                         .withKeySerde(stringSerde)
                         .withValueSerde(longSerde));
 
-        //  Total duration
+        // Total duration
         KTable<String, Long> totalDuration = events
                 .filter((k, v) -> v.getEventType() == EventType.RIDE_COMPLETED &&
                         v.getDurationMinutes() != null)
@@ -73,31 +85,28 @@ public class RideAnalyticsProcessor {
                 .aggregate(
                         () -> 0L,
                         (city, event, total) -> total + event.getDurationMinutes(),
-                        Materialized.<String, Long, KeyValueStore<Bytes, byte[]>>as("total-duration-store")
+                        Materialized.<String, Long, KeyValueStore<Bytes, byte[]>>as(
+                                        "total-duration-store")
                                 .withKeySerde(stringSerde)
-                                .withValueSerde(longSerde)
-                );
+                                .withValueSerde(longSerde));
 
-        //  Average duration = total / count
+        // Average duration = total / count
         KTable<String, Double> avgDuration = totalDuration.join(
                 ridesCompleted,
                 (total, count) -> count == 0 ? 0.0 : (double) total / count,
                 Materialized.<String, Double, KeyValueStore<Bytes, byte[]>>as("avg-duration-store")
                         .withKeySerde(stringSerde)
-                        .withValueSerde(doubleSerde)
-        );
+                        .withValueSerde(doubleSerde));
 
-        //  Combine activeRides and ridesCompleted into CityMetrics KStream
+        // Combine activeRides and ridesCompleted into CityMetrics KStream
         KStream<String, CityMetrics> combined = activeRides
                 .toStream()
                 .leftJoin(ridesCompleted,
                         (active, completed) -> new CityMetrics(
                                 active == null ? 0 : active,
-                                completed == null ? 0 : completed
-                        ));
+                                completed == null ? 0 : completed));
 
-
-        //  Join combined KStream with avgDuration KTable to create final JSON
+        // Join combined KStream with avgDuration KTable to create final JSON
         KStream<String, String> metrics = combined.join(
                 avgDuration,
                 (cityMetrics, avg) -> {
@@ -112,16 +121,15 @@ public class RideAnalyticsProcessor {
                     } catch (Exception e) {
                         return "{}";
                     }
-                }
-        );
+                });
 
         metrics.to(OUTPUT_TOPIC, Produced.with(stringSerde, stringSerde));
 
         // ---------------- PER-CITY ACTIVE RIDES ----------------
-        //  Convert activeRides KTable to KStream
+        // Convert activeRides KTable to KStream
         KStream<String, Long> activeRidesStream = activeRides.toStream();
 
-        //  Map each city and count to JSON and send to OUTPUT_TOPIC
+        // Map each city and count to JSON and send to OUTPUT_TOPIC
         activeRidesStream
                 .map((city, count) -> {
                     try {
@@ -155,13 +163,15 @@ public class RideAnalyticsProcessor {
                             }
                             return state;
                         },
-                        Materialized.<String, Map<String, Long>, KeyValueStore<Bytes, byte[]>>as("top-cities-store")
+                        Materialized.<String, Map<String, Long>, KeyValueStore<Bytes, byte[]>>as(
+                                        "top-cities-store")
                                 .withKeySerde(Serdes.String())
-                                .withValueSerde(new JsonSerde<>(new TypeReference<Map<String, Long>>() {
-                                }))
-                );
+                                .withValueSerde(new JsonSerde<>(
+                                        new TypeReference<Map<String, Long>>() {
+                                        })));
 
-        // Convert map to list, sort and limit top 5, then write JSON string to output topic
+        // Convert map to list, sort and limit top 5, then write JSON string to output
+        // topic
         cityCountsTable2.toStream()
                 .mapValues(map -> {
                     List<CityCount> top5 = map.entrySet().stream()
@@ -177,13 +187,10 @@ public class RideAnalyticsProcessor {
                 })
                 .to(OUTPUT_TOPIC, Produced.with(Serdes.String(), Serdes.String()));
 
-
         // -------------- ANOMALIES ----------------
-        events.filter((k, v) ->
-                        v.getEventType() == EventType.RIDE_COMPLETED &&
-                                v.getDurationMinutes() != null &&
-                                v.getDurationMinutes() > LONG_RIDE_THRESHOLD_MINUTES
-                )
+        events.filter((k, v) -> v.getEventType() == EventType.RIDE_COMPLETED &&
+                        v.getDurationMinutes() != null &&
+                        v.getDurationMinutes() > LONG_RIDE_THRESHOLD_MINUTES)
                 .mapValues(event -> {
                     try {
                         ObjectNode anomaly = mapper.createObjectNode();
