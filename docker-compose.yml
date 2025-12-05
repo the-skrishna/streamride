@@ -1,71 +1,38 @@
 services:
-  # Kafka Broker with KRaft (no Zookeeper needed)
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: streamride-kafka
+  broker:
+    image: apache/kafka:latest
+    container_name: broker
     ports:
       - "9092:9092"
-      - "29092:29092"
       - "9093:9093"
     environment:
-      # KRaft settings
       KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: 'broker,controller'
-      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      
-      # Listeners
-      KAFKA_LISTENERS: 'PLAINTEXT://kafka:9092,PLAINTEXT_HOST://0.0.0.0:29092,CONTROLLER://kafka:9093'
-      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
-      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
-      
-      # Cluster settings
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://localhost:9092,CONTROLLER://localhost:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-      KAFKA_DELETE_TOPIC_ENABLE: 'true'
-      KAFKA_LOG_RETENTION_HOURS: 168
-      
-      # Log directories
-      KAFKA_LOG_DIRS: '/var/lib/kafka/data'
-      
-      # Format storage (KRaft requirement)
-      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
-    networks:
-      - streamride-network
-#    healthcheck:
-#      test: ["CMD-SHELL", "nc -z localhost 9092 || exit 1"]
-#      interval: 10s
-#      timeout: 10s
-#      retries: 5
-#      start_period: 60s
-    volumes:
-      - kafka-data:/var/lib/kafka/data
-    command: >
-      bash -c "
-      if [ ! -f /var/lib/kafka/data/meta.properties ]; then
-        kafka-storage format -t MkU3OEVBNTcwNTJENDM2Qk -c /etc/kafka/kafka.properties;
-      fi;
-      /etc/confluent/docker/run
-      "
+      KAFKA_NUM_PARTITIONS: 3
 
   # Kafdrop - Kafka Web UI
-  kafdrop:
-    image: obsidiandynamics/kafdrop:latest
-    container_name: streamride-kafdrop
-    depends_on:
-      - kafka
-    ports:
-      - "9000:9000"
-    environment:
-      KAFKA_BROKERCONNECT: kafka:9092
-      JVM_OPTS: "-Xms32M -Xmx64M"
-      SERVER_SERVLET_CONTEXTPATH: "/"
-    networks:
-      - streamride-network
+#  kafdrop:
+#    image: obsidiandynamics/kafdrop:latest
+#    container_name: streamride-kafdrop
+#    depends_on:
+#      - broker
+#    ports:
+#      - "9000:9000"
+#    environment:
+#      KAFKA_BROKERCONNECT: kafka:9092
+#      JVM_OPTS: "-Xms32M -Xmx64M"
+#      SERVER_SERVLET_CONTEXTPATH: "/"
+#    networks:
+#      - streamride-network
 
   # Producer Service
   producer-service:
@@ -74,7 +41,7 @@ services:
       dockerfile: producer-service/Dockerfile
     container_name: streamride-producer
     depends_on:
-      - kafka
+      - broker
     ports:
       - "8081:8081"
     environment:
@@ -96,7 +63,7 @@ services:
       dockerfile: processor-service/Dockerfile
     container_name: streamride-processor
     depends_on:
-      - kafka
+      - broker
     ports:
       - "8082:8082"
     environment:
@@ -118,7 +85,7 @@ services:
       dockerfile: dashboard-service/Dockerfile
     container_name: streamride-dashboard
     depends_on:
-      - kafka
+      - broker
     ports:
       - "8083:8083"
     environment:
@@ -151,7 +118,3 @@ services:
 networks:
   streamride-network:
     driver: bridge
-
-volumes:
-  kafka-data:
-    driver: local
