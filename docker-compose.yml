@@ -1,0 +1,157 @@
+services:
+  # Kafka Broker with KRaft (no Zookeeper needed)
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: streamride-kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+      - "9093:9093"
+    environment:
+      # KRaft settings
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      
+      # Listeners
+      KAFKA_LISTENERS: 'PLAINTEXT://kafka:9092,PLAINTEXT_HOST://0.0.0.0:29092,CONTROLLER://kafka:9093'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      
+      # Cluster settings
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_DELETE_TOPIC_ENABLE: 'true'
+      KAFKA_LOG_RETENTION_HOURS: 168
+      
+      # Log directories
+      KAFKA_LOG_DIRS: '/var/lib/kafka/data'
+      
+      # Format storage (KRaft requirement)
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    networks:
+      - streamride-network
+#    healthcheck:
+#      test: ["CMD-SHELL", "nc -z localhost 9092 || exit 1"]
+#      interval: 10s
+#      timeout: 10s
+#      retries: 5
+#      start_period: 60s
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    command: >
+      bash -c "
+      if [ ! -f /var/lib/kafka/data/meta.properties ]; then
+        kafka-storage format -t MkU3OEVBNTcwNTJENDM2Qk -c /etc/kafka/kafka.properties;
+      fi;
+      /etc/confluent/docker/run
+      "
+
+  # Kafdrop - Kafka Web UI
+  kafdrop:
+    image: obsidiandynamics/kafdrop:latest
+    container_name: streamride-kafdrop
+    depends_on:
+      - kafka
+    ports:
+      - "9000:9000"
+    environment:
+      KAFKA_BROKERCONNECT: kafka:9092
+      JVM_OPTS: "-Xms32M -Xmx64M"
+      SERVER_SERVLET_CONTEXTPATH: "/"
+    networks:
+      - streamride-network
+
+  # Producer Service
+  producer-service:
+    build:
+      context: .
+      dockerfile: producer-service/Dockerfile
+    container_name: streamride-producer
+    depends_on:
+      - kafka
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_OPTS: "-Xmx512m -Xms256m"
+    networks:
+      - streamride-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Processor Service
+  processor-service:
+    build:
+      context: .
+      dockerfile: processor-service/Dockerfile
+    container_name: streamride-processor
+    depends_on:
+      - kafka
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_OPTS: "-Xmx512m -Xms256m"
+    networks:
+      - streamride-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Dashboard Service
+  dashboard-service:
+    build:
+      context: .
+      dockerfile: dashboard-service/Dockerfile
+    container_name: streamride-dashboard
+    depends_on:
+      - kafka
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_OPTS: "-Xmx512m -Xms256m"
+    networks:
+      - streamride-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Dashboard UI (React/Vite)
+  dashboard-ui:
+    build:
+      context: ./dashboard-ui
+      dockerfile: Dockerfile
+    container_name: streamride-ui
+    depends_on:
+      - dashboard-service
+    ports:
+      - "5173:80"
+    networks:
+      - streamride-network
+    environment:
+      VITE_API_BASE_URL: http://dashboard-service:8083
+
+networks:
+  streamride-network:
+    driver: bridge
+
+volumes:
+  kafka-data:
+    driver: local

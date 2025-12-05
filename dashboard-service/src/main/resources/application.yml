@@ -2,7 +2,10 @@ spring:
   application:
     name: dashboard-service
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: dashboard-service-v2
+      auto-offset-reset: latest
 
 server:
   port: 8083
