@@ -19,6 +19,9 @@ RUN mvn clean install spring-boot:repackage -DskipTests -pl processor-service -a
 # Runtime stage
 FROM amazoncorretto:17-alpine
 
+# Install glibc compatibility and libstdc++ for RocksDB
+RUN apk add --no-cache libc6-compat libstdc++
+
 # Set working directory
 WORKDIR /app
 
