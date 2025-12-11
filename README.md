@@ -145,14 +145,6 @@ Common issues:
 - **Port conflicts**: Check if ports 5173, 8081-8083, 9000, 9092 are available
 - **Out of memory**: Increase Docker memory limit to 4GB+
 
-## 📝 License
-
-[Your License Here]
-
-## 🤝 Contributing
-
-[Your Contributing Guidelines Here]
-
 ---
 
 **Built with ❤️ using Kafka, Spring Boot, and React**
