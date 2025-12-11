@@ -1,5 +1,6 @@
 package com.streamride.processorservice.config;
 
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.StreamsConfig;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,11 +22,12 @@ public class KafkaStreamsConfig {
     @Bean(name = KafkaStreamsDefaultConfiguration.DEFAULT_STREAMS_CONFIG_BEAN_NAME)
     public KafkaStreamsConfiguration kStreamsConfigs() {
         Map<String, Object> props = new HashMap<>();
-        props.put(StreamsConfig.APPLICATION_ID_CONFIG, "event-processor-service");
+        props.put(StreamsConfig.APPLICATION_ID_CONFIG, "event-processor-service-v4");
         props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
         props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
         props.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 1000); // frequent offset commits
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
         return new KafkaStreamsConfiguration(props);
     }
 }

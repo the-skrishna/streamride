@@ -7,7 +7,7 @@ import com.streamride.dashboardservice.model.DashboardMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,7 +22,7 @@ public class MetricsAggregatorService {
     private final Map<String, Long> cityActiveRides = new ConcurrentHashMap<>();
     private volatile Long globalActiveRides = 0L;
     private volatile Double averageDuration = 0.0;
-    private volatile LocalDateTime lastUpdate = LocalDateTime.now();
+    private volatile Instant lastUpdate = Instant.now();
 
     /**
      * Process incoming analytics message from Kafka
@@ -39,7 +39,7 @@ public class MetricsAggregatorService {
                 case "ANOMALY" -> processAnomaly(jsonNode);
                 default -> log.debug("Unknown message type: {}", type);
             }
-            this.lastUpdate = LocalDateTime.now();
+            this.lastUpdate = Instant.now();
         } catch (Exception e) {
             log.error("Error processing analytics message: {}", message, e);
         }
@@ -126,6 +126,6 @@ public class MetricsAggregatorService {
         cityActiveRides.clear();
         globalActiveRides = 0L;
         averageDuration = 0.0;
-        lastUpdate = LocalDateTime.now();
+        lastUpdate = Instant.now();
     }
 }

@@ -50,7 +50,7 @@ export const TopCitiesChart: React.FC<TopCitiesChartProps> = ({ data }) => {
                     },
                     title: {
                         display: true,
-                        text: 'Top 5 Active Cities',
+                        text: 'Top Active Cities',
                         font: { size: 16, weight: 'bold' },
                     },
                 },

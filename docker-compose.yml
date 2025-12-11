@@ -1,0 +1,131 @@
+services:
+  broker:
+    image: apache/kafka:latest
+    container_name: broker
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://broker:9092,CONTROLLER://broker:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@broker:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+    networks:
+      - streamride-network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server broker:9092 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  #Kafdrop - Kafka Web UI
+  kafdrop:
+    image: obsidiandynamics/kafdrop:latest
+    container_name: streamride-kafdrop
+    depends_on:
+      - broker
+    ports:
+      - "9000:9000"
+    environment:
+      KAFKA_BROKERCONNECT: broker:9092
+      JVM_OPTS: "-Xms32M -Xmx64M"
+      SERVER_SERVLET_CONTEXTPATH: "/"
+    networks:
+      - streamride-network
+
+  # Producer Service
+  producer-service:
+    build:
+      context: .
+      dockerfile: producer-service/Dockerfile
+    container_name: streamride-producer
+    depends_on:
+      broker:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: broker:9092
+      JAVA_OPTS: "-Xmx512m -Xms256m"
+    networks:
+      - streamride-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Processor Service
+  processor-service:
+    build:
+      context: .
+      dockerfile: processor-service/Dockerfile
+    container_name: streamride-processor
+    depends_on:
+      broker:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: broker:9092
+      JAVA_OPTS: "-Xmx512m -Xms256m"
+    networks:
+      - streamride-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Dashboard Service
+  dashboard-service:
+    build:
+      context: .
+      dockerfile: dashboard-service/Dockerfile
+    container_name: streamride-dashboard
+    depends_on:
+      broker:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: broker:9092
+      JAVA_OPTS: "-Xmx512m -Xms256m"
+    networks:
+      - streamride-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Dashboard UI (React/Vite)
+  dashboard-ui:
+    build:
+      context: ./dashboard-ui
+      dockerfile: Dockerfile
+    container_name: streamride-ui
+    depends_on:
+      - dashboard-service
+    ports:
+      - "5173:80"
+    networks:
+      - streamride-network
+    environment:
+      VITE_API_BASE_URL: http://dashboard-service:8083
+
+networks:
+  streamride-network:
+    driver: bridge
