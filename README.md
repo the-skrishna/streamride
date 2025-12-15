@@ -76,7 +76,7 @@ Producer Service → Kafka (KRaft) → Processor Service → Dashboard Service �
 
 1. **Start Kafka infrastructure**:
    ```bash
-   docker-compose up -d kafka kafdrop
+   brew services start kafka (via terminal)
    ```
 
 2. **Run backend services**:
@@ -113,10 +113,9 @@ streamride/
 ## 🧪 Testing
 
 ```bash
-# Check service health
-curl http://localhost:8081/actuator/health
-curl http://localhost:8082/actuator/health
-curl http://localhost:8083/actuator/health
+# Check service health/running status
+curl http://localhost:8081/api/producer/status
+curl http://localhost:8083/health
 
 # View Kafka topics in Kafdrop
 open http://localhost:9000
