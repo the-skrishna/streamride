@@ -30,16 +30,17 @@ docker-compose up -d --build
 
 ### 3. Access the Services
 
-Once all services are running, you can access:
+Once all services are running, you can access the following endpoints:
 
 | Service | URL | Description |
-|---------|-----|-------------|
+|--------|-----|-------------|
 | **Dashboard UI** | http://localhost:5173 | React frontend for real-time metrics |
 | **Kafdrop** | http://localhost:9000 | Kafka Web UI for monitoring topics |
-| **Producer Service** | http://localhost:8081 | Ride event producer API |
+| **Producer Service** | **Start:** http://localhost:8081/api/producer/start<br>**End:** http://localhost:8081/api/producer/end<br>**Status:** http://localhost:8081/api/producer/end/status | Ride event producer control APIs |
 | **Processor Service** | http://localhost:8082 | Kafka Streams processor |
 | **Dashboard Service** | http://localhost:8083 | Backend API & WebSocket server |
 | **Kafka Broker** | localhost:9092 (internal)<br>localhost:29092 (external) | Kafka broker endpoints |
+
 
 ### 4. Verify Services
 
@@ -56,46 +57,8 @@ docker-compose logs -f producer-service
 
 ## 🏗️ Architecture
 
-The Docker setup includes:
+<img width="1024" height="1024" alt="image" src="https://github.com/user-attachments/assets/d3d1b8e1-f2cb-420d-a355-e9a0e2d0d6d3" />
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    StreamRide Stack                      │
-├─────────────────────────────────────────────────────────┤
-│                                                           │
-│  ┌──────────────┐         ┌──────────────┐              │
-│  │ Dashboard UI │────────▶│   Nginx      │              │
-│  │  (React)     │         │  (Port 5173) │              │
-│  └──────────────┘         └──────┬───────┘              │
-│                                   │                       │
-│                                   ▼                       │
-│  ┌──────────────────────────────────────────────┐       │
-│  │        Dashboard Service (Port 8083)         │       │
-│  │         WebSocket + REST API                 │       │
-│  └───────────────────┬──────────────────────────┘       │
-│                      │                                    │
-│                      ▼                                    │
-│  ┌──────────────────────────────────────────────┐       │
-│  │      Kafka Broker - KRaft Mode (9092)       │       │
-│  │        (No Zookeeper Required)              │       │
-│  │                                              │       │
-│  │  ┌────────────┐  ┌────────────┐            │       │
-│  │  │  Producer  │  │ Processor  │            │       │
-│  │  │  Service   │  │  Service   │            │       │
-│  │  │ (Port 8081)│  │ (Port 8082)│            │       │
-│  │  └────────────┘  └────────────┘            │       │
-│  └──────────────────────────────────────────────┘       │
-│                                                           │
-│  ┌──────────────────────────────────────────────┐       │
-│  │         Kafdrop UI (Port 9000)              │       │
-│  └──────────────────────────────────────────────┘       │
-│                                                           │
-└─────────────────────────────────────────────────────────┘
-
-Note: This setup uses Kafka in KRaft mode (Kafka Raft), which
-eliminates the need for Zookeeper. KRaft is the modern approach
-and will be the default in future Kafka versions.
-```
 
 ## 🛠️ Common Commands
 
@@ -153,13 +116,6 @@ docker system prune -a
 
 ## 🔧 Configuration
 
-### Environment Variables
-
-Copy the example environment file and customize:
-
-```bash
-cp .env.example .env
-```
 
 Key environment variables:
 
@@ -187,21 +143,11 @@ Each service can be configured via its `application.yml` file:
 Visit Kafdrop at http://localhost:9000 to see:
 - `ride-events` - Raw ride events
 - `ride-analytics` - Processed analytics
-- `city-stats` - City-level statistics
+- `__consumer_offsets` - offset details
+- `*-changelog` - KStream based internal topics
+- `*-repartition` - KStream based internal topics
 
-### 2. Generate Test Data
-
-The producer service automatically generates ride events. You can also trigger manually:
-
-```bash
-# Check producer health
-curl http://localhost:8081/actuator/health
-
-# View producer logs
-docker-compose logs -f producer-service
-```
-
-### 3. View Real-time Dashboard
+### 2. View Real-time Dashboard
 
 Open http://localhost:5173 in your browser to see:
 - Active rides count
@@ -344,39 +290,15 @@ curl http://localhost:8081/actuator/health
 curl http://localhost:8082/actuator/health
 
 # Dashboard Service
-curl http://localhost:8083/actuator/health
+curl http://localhost:8083/health
 
 # Dashboard UI
 curl http://localhost:5173
 ```
 
-## 🔐 Production Considerations
-
-For production deployment, consider:
-
-1. **Security**:
-   - Enable Kafka authentication (SASL/SSL)
-   - Add API authentication/authorization
-   - Use secrets management (Docker secrets, Vault)
-
-2. **Scalability**:
-   - Increase Kafka partitions
-   - Scale processor service instances
-   - Add load balancer for frontend
-
-3. **Monitoring**:
-   - Add Prometheus + Grafana
-   - Enable Spring Boot Actuator metrics
-   - Set up log aggregation (ELK stack)
-
-4. **Persistence**:
-   - Use named volumes for Kafka data
-   - Configure backup strategies
-   - Set appropriate retention policies
-
 ## 📝 Additional Resources
 
-- [Kafka Documentation](https://kafka.apache.org/documentation/)
+- [Kafka Documentation](https://spring.io/guides/gs/spring-boot-docker/)
 - [Spring Boot Docker Guide](https://spring.io/guides/gs/spring-boot-docker/)
 - [Docker Compose Reference](https://docs.docker.com/compose/compose-file/)
 
