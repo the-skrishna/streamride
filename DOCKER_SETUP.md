@@ -53,11 +53,6 @@ docker-compose logs -f
 docker-compose logs -f producer-service
 ```
 
-## 🏗️ Architecture
-
-<img width="1024" height="1024" alt="image" src="https://github.com/user-attachments/assets/d3d1b8e1-f2cb-420d-a355-e9a0e2d0d6d3" />
-
-
 ## 🛠️ Common Commands
 
 ### Service Management
