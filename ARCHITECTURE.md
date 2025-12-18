@@ -8,7 +8,7 @@ StreamRide is a real-time ride analytics platform that processes ride events thr
 
 ## Architecture Diagram
 
-![StreamRide Architecture](/.gemini/antigravity/brain/c46d6c2d-32f7-4a60-9bd3-45428d3c4712/streamride_architecture_diagram_1765965367389.png)
+![StreamRide Architecture]([/.gemini/antigravity/brain/c46d6c2d-32f7-4a60-9bd3-45428d3c4712/streamride_architecture_diagram_1765965367389.png](https://github.com/the-skrishna/streamride/blob/main/architecture-diagram.png))
 
 ---
 
