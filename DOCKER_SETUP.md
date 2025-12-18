@@ -282,10 +282,7 @@ All services include health checks:
 
 ```bash
 # Producer Service
-curl http://localhost:8081/actuator/health
-
-# Processor Service
-curl http://localhost:8082/actuator/health
+curl http://localhost:8081/api/producer/status
 
 # Dashboard Service
 curl http://localhost:8083/health
