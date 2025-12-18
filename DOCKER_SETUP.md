@@ -37,8 +37,6 @@ Once all services are running, you can access the following endpoints:
 | **Dashboard UI** | http://localhost:5173 | React frontend for real-time metrics |
 | **Kafdrop** | http://localhost:9000 | Kafka Web UI for monitoring topics |
 | **Producer Service** | **Start:** http://localhost:8081/api/producer/start<br>**End:** http://localhost:8081/api/producer/end<br>**Status:** http://localhost:8081/api/producer/status | Ride event producer control APIs |
-| **Processor Service** | http://localhost:8082 | Kafka Streams processor |
-| **Dashboard Service** | http://localhost:8083 | Backend API & WebSocket server |
 | **Kafka Broker** | localhost:9092 (internal)<br>localhost:29092 (external) | Kafka broker endpoints |
 
 
