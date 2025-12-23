@@ -32,9 +32,9 @@ Once running, access:
 
 - **Dashboard UI**: http://localhost:5173 - Real-time analytics dashboard
 - **Kafdrop**: http://localhost:9000 - Kafka topic browser
-- **Producer API**: http://localhost:8081 - Ride event generator
-- **Processor API**: http://localhost:8082 - Stream processor
-- **Dashboard API**: http://localhost:8083 - Backend API
+- **Producer API**: Running on port: 8081 - Ride event generator
+- **Processor API**: Running on port: 8082 - Stream processor
+- **Dashboard API**: Running on port: 8083 - Backend API
 
 ### Stop the Application
 
